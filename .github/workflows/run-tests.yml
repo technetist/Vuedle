@@ -60,6 +60,14 @@ jobs:
         env:
           HUSKY: '0' # By default do not run HUSKY install
 
+      - name: 'Create env file'
+        run: |
+          touch .env
+          echo AWS_REGION=${{ secrets.APP_AWS_REGION }} >> .env
+          echo AWS_BUCKET=${{ secrets.APP_AWS_BUCKET }} >> .env
+          echo WORD_LIST_FILE_NAME=${{ secrets.WORD_LIST_FILE_NAME }} >> .env
+          cat .env
+
       - name: Test unit
         run: pnpm run test:unit --coverage --minWorkers=1 --maxWorkers=2
 
