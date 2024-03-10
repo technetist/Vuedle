@@ -1,4 +1,4 @@
-import { mount, VueWrapper } from '@vue/test-utils'
+import { mount } from '@vue/test-utils'
 import GameBoard from '../GameBoard.vue'
 import { expect } from '@playwright/test'
 import { VICTORY_MESSAGE, DEFEAT_MESSAGE } from '@/settings'
