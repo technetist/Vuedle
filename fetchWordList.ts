@@ -14,11 +14,11 @@ async function fetchWordList() {
     Key: process.env.WORD_LIST_FILE_NAME
   })
 
-  if (!fs.existsSync(path.join(process.cwd(), process.env.WORD_LIST_FILE_NAME))) {
+  if (!fs.existsSync(path.join(process.cwd(), 'src', process.env.WORD_LIST_FILE_NAME))) {
     try {
       const response = await client.send(command)
       const str = await response.Body?.transformToString()
-      const outputPath = path.join(process.cwd(), process.env.WORD_LIST_FILE_NAME)
+      const outputPath = path.join(process.cwd(), 'src', process.env.WORD_LIST_FILE_NAME)
       fs.writeFileSync(outputPath, str)
       console.log(`File fetched and saved to ${outputPath}`)
     } catch (err) {

@@ -1,10 +1,17 @@
 <script setup lang="ts">
 import { VICTORY_MESSAGE, DEFEAT_MESSAGE } from '@/settings'
 import { computed, ref } from 'vue'
+import englishWords from '@/word-list.json'
 
-const props = defineProps<{
-  word: string
-}>()
+const props = defineProps({
+  word: {
+    type: String,
+    validator: (wordGiven: string) => wordGiven.length === 5 &&
+      /^[A-Z]*$/.test(wordGiven) &&
+      englishWords.data.findIndex(word => wordGiven.toLowerCase() === word.toLowerCase()) > -1,
+    required: true
+  }
+})
 
 const currentGuess = ref('')
 

@@ -18,19 +18,26 @@ jobs:
         os: [ ubuntu-latest ]
         node: [ 21 ]
 
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
       - name: Clone repository
-        uses: actions/checkout@v3
+        id: clone
+        uses: actions/checkout@v4
 
       - name: Set pnpm version
+        id: set-pnpm-version
         uses: pnpm/action-setup@v3
         with:
           version: ^8.15.0
 
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
+      - name: Use Node.js ${{ matrix.node }}
+        id: setup-node
+        uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: ${{ matrix.node }}
           cache: 'pnpm'
 
       - name: Get packages cache directory path
@@ -45,33 +52,52 @@ jobs:
           echo "YEAR_MONTH=$(/bin/date -u "+%Y%m")" >> $GITHUB_OUTPUT
 
       - name: Cache node_modules
-        uses: actions/cache@v3.2.2
+        id: cache-node-modules
+        uses: actions/cache@v4
         with:
-          path: ${{ steps.package-cache-dir-path.outputs.STORE_PATH }}
-          key: ${{ matrix.os }}-node-v${{ matrix.node }}-pnpm-${{ steps.cache-rotation.outputs.YEAR_MONTH }}-${{ hashFiles('**/yarn.lock') }}
+          path: '**/node_modules'
+          key: ${{ matrix.os }}-node-v${{ matrix.node }}-pnpm-${{ steps.cache-rotation.outputs.YEAR_MONTH }}-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ matrix.os }}-node-v${{ matrix.node }}-pnpm-${{ steps.cache-rotation.outputs.YEAR_MONTH }}-
             ${{ matrix.os }}-node-v${{ matrix.node }}-pnpm-
             ${{ matrix.os }}-node-v${{ matrix.node }}-
             ${{ matrix.os }}-
 
+      - name: Create env file
+        id: create-env-file
+        run: |
+          touch .env
+          echo AWS_REGION=$APP_AWS_REGION >> .env
+          echo AWS_BUCKET=$APP_AWS_BUCKET >> .env
+          echo WORD_LIST_FILE_NAME=$WORD_LIST_FILE_NAME >> .env
+          cat .env
+        env:
+          APP_AWS_REGION: ${{ secrets.APP_AWS_REGION }}
+          APP_AWS_BUCKET: ${{ secrets.APP_AWS_BUCKET }}
+          WORD_LIST_FILE_NAME: ${{ secrets.WORD_LIST_FILE_NAME }}
+
+      - name: Configure AWS Credentials
+        id: configure-aws-credentials
+        if: steps.create-env-file.outcome == 'success'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.APP_AWS_REGION }}
+          mask-aws-account-id: "yes"
+
       - name: Install dependencies
+        id: install-dependencies
+        if: steps.configure-aws-credentials.outcome == 'success'
         run: pnpm install --frozen-lockfile --prefer-offline
         env:
           HUSKY: '0' # By default do not run HUSKY install
 
-      - name: 'Create env file'
-        run: |
-          touch .env
-          echo AWS_REGION=${{ secrets.APP_AWS_REGION }} >> .env
-          echo AWS_BUCKET=${{ secrets.APP_AWS_BUCKET }} >> .env
-          echo WORD_LIST_FILE_NAME=${{ secrets.WORD_LIST_FILE_NAME }} >> .env
-          cat .env
-
       - name: Test unit
+        if: steps.install-dependencies.outcome == 'success'
         run: pnpm run test:unit --coverage --minWorkers=1 --maxWorkers=2
 
       - name: Test unit (Vue 3)
+        if: steps.install-dependencies.outcome == 'success'
         run: pnpm run test:unit --coverage --minWorkers=1 --maxWorkers=2
         env:
           USE_VUE3: '1'

@@ -19,6 +19,18 @@ const mockWriteFileSync = fs.writeFileSync as MockedFunction<
   typeof fs.writeFileSync
 >
 
+async function fetchWordListValues() {
+  s3Mock.on(GetObjectCommand).resolves({
+    Body: {
+      transformToString: () => Promise.resolve(JSON.stringify({ data: ['tests', 'words', 'texts'] }))
+    }
+  } as any as GetObjectCommandOutput)
+
+  const fetchWordList = await import('./fetchWordList')
+
+  await fetchWordList.default()
+}
+
 beforeEach(async () => {
   s3Mock.reset()
   vi.resetAllMocks()
@@ -32,28 +44,15 @@ afterEach(() => {
 
 describe('S3 fetch and save', () => {
   it('fetches from S3 and saves the file locally', async () => {
-    // Mock the S3 client to return a stream-like object
-    s3Mock.on(GetObjectCommand).resolves({
-      Body: {
-        // Simulate a stream-like object with a custom transformToString function
-        transformToString: () => Promise.resolve(JSON.stringify({ data: ['tests', 'words', 'texts'] }))
-      }
-    } as any as GetObjectCommandOutput)
+    await fetchWordListValues()
 
-    const fetchWordList = await import('./fetchWordList')
-
-    await fetchWordList.default()
-
-    // Verify the S3 client was called with the correct parameters
     expect(s3Mock).toHaveReceivedCommand(GetObjectCommand)
 
-    // Verify fs.writeFileSync was called correctly
-    const expectedPath = path.join(process.cwd(), process.env.WORD_LIST_FILE_NAME)
+    const expectedPath = path.join(process.cwd(), 'src', process.env.WORD_LIST_FILE_NAME)
     expect(mockWriteFileSync).toHaveBeenCalledWith(expectedPath, JSON.stringify({ data: ['tests', 'words', 'texts'] }))
   })
 
   it('handles errors from S3', async () => {
-    // Mock the S3 client to throw an error
     s3Mock.on(GetObjectCommand).rejects(new Error('Simulated S3 error'))
 
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {
@@ -75,35 +74,20 @@ describe('fetchWordList behavior based on process.argv[1]', () => {
   let originalArgv: string[]
 
   beforeEach(() => {
-    // Store the original process.argv
     originalArgv = [...process.argv]
-    // Mock process.argv[1] as if it's the script being executed
     process.argv[1] = fileURLToPath(import.meta.url)
   })
 
   afterEach(() => {
-    // Restore the original process.argv after each test
     process.argv = originalArgv
   })
 
-  it('should behave differently when called directly', async () => {
-    s3Mock.on(GetObjectCommand).resolves({
-      Body: {
-        // Simulate a stream-like object with a custom transformToString function
-        transformToString: () => Promise.resolve(JSON.stringify({ data: ['tests', 'words', 'texts'] }))
-      }
-    } as any as GetObjectCommandOutput)
+  it('should have the same output when called directly', async () => {
+    await fetchWordListValues()
 
-    // Call the function or script logic you want to test
-    const fetchWordList = await import('./fetchWordList')
-
-    await fetchWordList.default()
-
-    // Verify the S3 client was called with the correct parameters
     expect(s3Mock).toHaveReceivedCommand(GetObjectCommand)
 
-    // Verify fs.writeFileSync was called correctly
-    const expectedPath = path.join(process.cwd(), process.env.WORD_LIST_FILE_NAME)
+    const expectedPath = path.join(process.cwd(), 'src', process.env.WORD_LIST_FILE_NAME)
     expect(mockWriteFileSync).toHaveBeenCalledWith(expectedPath, JSON.stringify({ data: ['tests', 'words', 'texts'] }))
   })
 
@@ -113,18 +97,14 @@ describe('fetchWordList behavior based on process.argv[1]', () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {
     })
 
-    // Call the function or script logic you want to test
     const fetchWordList = await import('./fetchWordList')
 
     await fetchWordList.default()
 
-    // Verify the S3 client was called with the correct parameters
     expect(s3Mock).toHaveReceivedCommand(GetObjectCommand)
 
-    // Verify that the error handling code was triggered
     expect(consoleErrorSpy).toHaveBeenCalledWith('Error fetching from storage:', expect.any(Error))
 
-    // Clean up the spy to avoid memory leaks and unintended side effects in other tests
     consoleErrorSpy.mockRestore()
   })
 })
